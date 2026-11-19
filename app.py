@@ -1,5 +1,6 @@
 import gradio as gr
 import base64
+import os
 import time
 from src.crew import NourishBotRecipeCrew, NourishBotAnalysisCrew
 from src.lmstudio import (
@@ -122,8 +123,10 @@ def analyze_food(image, dietary_restrictions, workflow_type, progress=gr.Progres
     if workflow_type not in ("recipe", "analysis"):
         return "Invalid workflow type. Choose 'recipe' or 'analysis'."
 
-    image.convert("RGB").save("uploaded_image.jpg")  # Save the uploaded image temporarily
-    image_path = "uploaded_image.jpg"
+    # Save the uploaded image temporarily; an absolute path makes it clear to the
+    # model that the image is a file it can hand to its tools.
+    image_path = os.path.abspath("uploaded_image.jpg")
+    image.convert("RGB").save(image_path)
 
     inputs = {
         'uploaded_image': image_path,

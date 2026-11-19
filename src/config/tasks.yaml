@@ -1,6 +1,8 @@
 ingredient_detection_task:
   description: >
-    Detect the ingredients from the {uploaded_image} using an advanced vision model and filter the raw list.
+    Detect the ingredients from the food image using an advanced vision model and filter the raw list.
+    The image is already saved on disk at the local file path {uploaded_image}; you cannot see it directly,
+    so pass this exact path as image_input to the ingredient extraction tool. Do not ask the user to upload it.
   agent: ingredient_detection_agent
   expected_output: >
     A list of detected ingredients from the image.
@@ -16,8 +18,10 @@ dietary_filtering_task:
 
 nutrient_analysis_task:
   description: >
-    Provide a detailed breakdown of key nutrients such as protein, carbohydrates, fats, vitamins, and minerals based on {uploaded_image}; 
-    as well the caloric content of the food. Ends with a health evaluation for the dish.
+    Provide a detailed breakdown of key nutrients such as protein, carbohydrates, fats, vitamins, and minerals
+    for the dish in the food image, as well the caloric content of the food. Ends with a health evaluation for the dish.
+    The image is already saved on disk at the local file path {uploaded_image}; you cannot see it directly,
+    so pass this exact path as image_input to the nutrient analysis tool. Do not ask the user to upload it.
   agent: nutrient_analysis_agent
   expected_output: >
     Nutrient analysis based on the calorie estimation.
