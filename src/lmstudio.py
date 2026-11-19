@@ -3,7 +3,7 @@ LM Studio connection layer.
 
 Every model call in the app (the CrewAI agents and the vision/text tools) goes
 through the local LM Studio server via its OpenAI-compatible API. Models are
-loaded with a 32,768-token context window through LM Studio's REST API
+loaded with a 65,536-token context window through LM Studio's REST API
 (/api/v1/models/load) before they are used.
 
 All settings can be overridden with environment variables or a .env file:
@@ -12,7 +12,7 @@ All settings can be overridden with environment variables or a .env file:
     LMSTUDIO_API_KEY         Any non-empty string unless LM Studio auth is enabled
     LMSTUDIO_TEXT_MODEL      Model for the CrewAI agents and text-only tools
     LMSTUDIO_VISION_MODEL    Vision-capable model for image analysis
-    LMSTUDIO_CONTEXT_LENGTH  Context window to load models with (default 32768)
+    LMSTUDIO_CONTEXT_LENGTH  Context window to load models with (default 65536)
     LMSTUDIO_MAX_TOKENS      Max tokens generated per response (default 8192)
     LMSTUDIO_TEMPERATURE     Sampling temperature (default 0.2)
     LMSTUDIO_TIMEOUT         Request timeout in seconds (default 600)
@@ -42,9 +42,9 @@ logger = logging.getLogger(__name__)
 
 LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1").rstrip("/")
 LMSTUDIO_API_KEY = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
-TEXT_MODEL = os.getenv("LMSTUDIO_TEXT_MODEL", "google/gemma-4-26b-a4b-qat")
-VISION_MODEL = os.getenv("LMSTUDIO_VISION_MODEL", "google/gemma-4-26b-a4b-qat")
-CONTEXT_LENGTH = int(os.getenv("LMSTUDIO_CONTEXT_LENGTH", "32768"))
+TEXT_MODEL = os.getenv("LMSTUDIO_TEXT_MODEL", "qwen/qwen3.6-35b-a3b")
+VISION_MODEL = os.getenv("LMSTUDIO_VISION_MODEL", "qwen/qwen3.6-35b-a3b")
+CONTEXT_LENGTH = int(os.getenv("LMSTUDIO_CONTEXT_LENGTH", "65536"))
 MAX_TOKENS = int(os.getenv("LMSTUDIO_MAX_TOKENS", "8192"))
 TEMPERATURE = float(os.getenv("LMSTUDIO_TEMPERATURE", "0.2"))
 TIMEOUT = float(os.getenv("LMSTUDIO_TIMEOUT", "600"))
