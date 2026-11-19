@@ -12,11 +12,11 @@ class RecipeSuggestionOutput(BaseModel):
 
 class VitaminInfo(BaseModel):
     name: str = Field(..., description="Name of the vitamin")
-    percentage_dv: str = Field(..., description="Percentage of the Daily Value")
+    percentage_dv: Optional[str] = Field(None, description="Percentage of the Daily Value, if known")
 
 class MineralInfo(BaseModel):
     name: str = Field(..., description="Name of the mineral")
-    amount: str = Field(..., description="Amount and unit of the mineral")
+    amount: Optional[str] = Field(None, description="Amount and unit of the mineral, if known")
 
 class NutrientBreakdown(BaseModel):
     protein: Optional[str] = Field(None, description="Protein content")

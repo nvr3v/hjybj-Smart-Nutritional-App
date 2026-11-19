@@ -2,6 +2,9 @@ import gradio as gr
 import base64
 import time
 from src.crew import NourishBotRecipeCrew, NourishBotAnalysisCrew
+from src.lmstudio import (
+    ensure_model_loaded, LMSTUDIO_BASE_URL, TEXT_MODEL, VISION_MODEL, CONTEXT_LENGTH
+)
 
 def format_recipe_output(final_output):
     """
@@ -82,7 +85,7 @@ def format_analysis_output(final_output):
         output += "|-------------|--------|\n"
         for v in vitamins:
             name = v.get('name', 'N/A')
-            dv = v.get('percentage_dv', 'N/A')
+            dv = v.get('percentage_dv') or 'N/A'
             output += f"| {name} | {dv} |\n"
     
     # Display minerals table if available
@@ -93,7 +96,7 @@ def format_analysis_output(final_output):
         output += "|-------------|-----------|\n"
         for m in minerals:
             name = m.get('name', 'N/A')
-            amount = m.get('amount', 'N/A')
+            amount = m.get('amount') or 'N/A'
             output += f"| {name} | {amount} |\n"
     
     # Append health evaluation at the end
@@ -114,7 +117,12 @@ def analyze_food(image, dietary_restrictions, workflow_type, progress=gr.Progres
     :return: Result from the NourishBot workflow.
     """
     
-    image.save("uploaded_image.jpg")  # Save the uploaded image temporarily
+    if image is None:
+        return "Please upload an image first."
+    if workflow_type not in ("recipe", "analysis"):
+        return "Invalid workflow type. Choose 'recipe' or 'analysis'."
+
+    image.convert("RGB").save("uploaded_image.jpg")  # Save the uploaded image temporarily
     image_path = "uploaded_image.jpg"
 
     inputs = {
@@ -138,9 +146,12 @@ def analyze_food(image, dietary_restrictions, workflow_type, progress=gr.Progres
 
     # Run the crew workflow and get the result
     crew_obj = crew_instance.crew()
-    final_output = crew_obj.kickoff(inputs=inputs)
+    crew_output = crew_obj.kickoff(inputs=inputs)
 
-    final_output = final_output.to_dict()
+    final_output = crew_output.to_dict()
+    if not final_output:
+        # Structured (JSON) conversion failed; show the agent's answer as-is
+        return crew_output.raw
 
     if workflow_type == "recipe":
         recipe_markdown = format_recipe_output(final_output)
@@ -241,4 +252,8 @@ with gr.Blocks(theme=gr.themes.Citrus(), css=css, js=js) as demo:
 
 # Launch the Gradio interface
 if __name__ == "__main__":
+    print(f"Connecting to LM Studio at {LMSTUDIO_BASE_URL} "
+          f"(text: {TEXT_MODEL}, vision: {VISION_MODEL}, context: {CONTEXT_LENGTH:,} tokens)")
+    for model_id in dict.fromkeys([TEXT_MODEL, VISION_MODEL]):
+        ensure_model_loaded(model_id)
     demo.launch(server_name="127.0.0.1", server_port=5000)

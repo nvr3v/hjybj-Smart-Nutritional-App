@@ -9,15 +9,8 @@ from src.tools import (
     DietaryFilterTool,
     NutrientAnalysisTool
 )
-from ibm_watsonx_ai import Credentials, APIClient
-from src.models import RecipeSuggestionOutput, NutrientAnalysisOutput 
-
-credentials = Credentials(
-                   url = "https://us-south.ml.cloud.ibm.com",
-                   # api_key = "<YOUR_API_KEY>" # Normally you'd put an API key here, but we've got you covered here
-                  )
-client = APIClient(credentials)
-project_id = "skills-network"
+from src.models import RecipeSuggestionOutput, NutrientAnalysisOutput
+from src.lmstudio import crew_llm, LMStudioConverter
 
 # Get the absolute path to the config directory
 CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
@@ -45,6 +38,8 @@ class BaseNourishBotCrew:
                 ExtractIngredientsTool.extract_ingredient, 
                 FilterIngredientsTool.filter_ingredients
             ],
+            llm=crew_llm(),
+            respect_context_window=True,
             allow_delegation=False,
             max_iter=5,
             verbose=True
@@ -55,6 +50,8 @@ class BaseNourishBotCrew:
         return Agent(
             config=self.agents_config['dietary_filtering_agent'],
             tools=[DietaryFilterTool.filter_based_on_restrictions],
+            llm=crew_llm(),
+            respect_context_window=True,
             allow_delegation=True,
             max_iter=6,
             verbose=True
@@ -65,6 +62,8 @@ class BaseNourishBotCrew:
         return Agent(
             config=self.agents_config['nutrient_analysis_agent'],
             tools=[NutrientAnalysisTool.analyze_image],
+            llm=crew_llm(),
+            respect_context_window=True,
             allow_delegation=False,
             max_iter=4,
             verbose=True
@@ -74,6 +73,8 @@ class BaseNourishBotCrew:
     def recipe_suggestion_agent(self) -> Agent:
         return Agent(
             config=self.agents_config['recipe_suggestion_agent'],
+            llm=crew_llm(),
+            respect_context_window=True,
             allow_delegation=False,
             verbose=True
         )
@@ -111,7 +112,8 @@ class BaseNourishBotCrew:
             description=task_config['description'],
             agent=self.nutrient_analysis_agent(),
             expected_output=task_config['expected_output'],
-            output_json=NutrientAnalysisOutput
+            output_json=NutrientAnalysisOutput,
+            converter_cls=LMStudioConverter
         )
 
     @task
@@ -126,7 +128,8 @@ class BaseNourishBotCrew:
                 'filtered_ingredients': outputs['dietary_filtering_task']
             },
             expected_output=task_config['expected_output'],
-            output_json=RecipeSuggestionOutput
+            output_json=RecipeSuggestionOutput,
+            converter_cls=LMStudioConverter
         )
 
 

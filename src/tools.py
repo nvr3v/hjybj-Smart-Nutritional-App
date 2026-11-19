@@ -4,21 +4,30 @@ import base64
 import requests
 from langchain.tools import tool
 from PIL import Image
-from ibm_watsonx_ai import Credentials, APIClient
-from ibm_watsonx_ai.foundation_models import ModelInference
 from io import BytesIO
 from typing import List, Optional
 import logging
+from src.lmstudio import chat, TEXT_MODEL, VISION_MODEL
 logging.basicConfig(level=logging.INFO)
 
-logging.info("Extracting ingredients from image...")
 
-credentials = Credentials(
-                   url = "https://us-south.ml.cloud.ibm.com",
-                   # api_key = "<YOUR_API_KEY>" # Normally you'd put an API key here, but we've got you covered here
-                  )
-client = APIClient(credentials)
-project_id = "skills-network"
+def _load_image_as_data_url(image_input: str) -> str:
+    """Read a local path or URL and return it as a base64 JPEG data URL."""
+    if image_input.startswith("http"):  # Check if input is a URL
+        response = requests.get(image_input, timeout=60)
+        response.raise_for_status()
+        image_bytes = BytesIO(response.content)
+    else:
+        if not os.path.isfile(image_input):
+            raise FileNotFoundError(f"No file found at path: {image_input}")
+        with open(image_input, "rb") as file:
+            image_bytes = BytesIO(file.read())
+
+    # Re-encode as RGB JPEG so PNG/WebP/RGBA inputs are accepted by the vision model
+    image = Image.open(image_bytes).convert("RGB")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
 class ExtractIngredientsTool():
@@ -30,41 +39,21 @@ class ExtractIngredientsTool():
         :param image_input: The image file path (local) or URL (remote).
         :return: A list of ingredients extracted from the image.
         """
-        if image_input.startswith("http"):  # Check if input is a URL
-            # Download the image from the URL
-            response = requests.get(image_input)
-            response.raise_for_status()
-            image_bytes = BytesIO(response.content)
-        else:
-            # Open the local image file in binary mode
-            if not os.path.isfile(image_input):
-                raise FileNotFoundError(f"No file found at path: {image_input}")
-            with open(image_input, "rb") as file:
-                image_bytes = BytesIO(file.read())
-
-        # Encode the image to a base64 string
-        encoded_image = base64.b64encode(image_bytes.read()).decode("utf-8")
-
-        # Call the model with the encoded image
-        model = ModelInference(
-            model_id="meta-llama/llama-3-2-90b-vision-instruct",
-            credentials=credentials,
-            project_id=project_id,
-            params={"max_tokens": 300},
-        )
-        response = model.chat(
+        image_url = _load_image_as_data_url(image_input)
+        response = chat(
+            model=VISION_MODEL,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "Extract ingredients from the food item image"},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
+                        {"type": "image_url", "image_url": {"url": image_url}}
                     ],
                 }
             ]
         )
 
-        return response['choices'][0]['message']['content']
+        return response
 
 
 class FilterIngredientsTool:
@@ -95,14 +84,6 @@ class DietaryFilterTool:
         if not dietary_restrictions:
             return ingredients
 
-        # Initialize the WatsonX model
-        model = ModelInference(
-            model_id="ibm/granite-4-h-small",
-            credentials=credentials,
-            project_id=project_id,
-            params={"max_tokens": 150},
-        )
-
         # Create a prompt for the LLM to filter ingredients
         prompt = f"""
         You are an AI nutritionist specialized in dietary restrictions. 
@@ -112,8 +93,9 @@ class DietaryFilterTool:
         Return only the compliant ingredients as a comma-separated list with no additional commentary.
         """
 
-        # Send the prompt to the model for filtering
-        response = model.chat(
+        # Send the prompt to the local LM Studio text model for filtering
+        response = chat(
+            model=TEXT_MODEL,
             messages=[
                 {
                     "role": "user",
@@ -125,7 +107,7 @@ class DietaryFilterTool:
         )
 
         # Parse the response to return the filtered list
-        filtered = response['choices'][0]['message']['content'].strip().lower()
+        filtered = response.strip().lower()
         filtered_list = [item.strip() for item in filtered.split(',') if item.strip()]
         return filtered_list
 
@@ -139,28 +121,7 @@ class NutrientAnalysisTool():
         :param image_input: The image file path (local) or URL (remote).
         :return: A string with nutrient breakdown (protein, carbs, fat, etc.) and estimated calorie information.
         """
-        if image_input.startswith("http"):  # Check if input is a URL
-            # Download the image from the URL
-            response = requests.get(image_input)
-            response.raise_for_status()
-            image_bytes = BytesIO(response.content)
-        else:
-            # Open the local image file in binary mode
-            if not os.path.isfile(image_input):
-                raise FileNotFoundError(f"No file found at path: {image_input}")
-            with open(image_input, "rb") as file:
-                image_bytes = BytesIO(file.read())
-
-        # Encode the image to a base64 string
-        encoded_image = base64.b64encode(image_bytes.read()).decode("utf-8")
-
-        # Call the model with the encoded image
-        model = ModelInference(
-            model_id="meta-llama/llama-3-2-90b-vision-instruct",
-            credentials=credentials,
-            project_id=project_id,
-            params={"max_tokens": 300},
-        )
+        image_url = _load_image_as_data_url(image_input)
         # Assistant prompt (can be customized)
         assistant_prompt = """
             You are an expert nutritionist. Your task is to analyze the food items displayed in the image and provide a detailed nutritional assessment using the following format:
@@ -183,16 +144,17 @@ class NutrientAnalysisTool():
         For precise dietary advice or medical guidance, consult a qualified nutritionist or healthcare provider.
         Format your response exactly like the template above to ensure consistency.
         """
-        response = model.chat(
+        response = chat(
+            model=VISION_MODEL,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": assistant_prompt},
-                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded_image}}
+                        {"type": "image_url", "image_url": {"url": image_url}}
                     ],
                 }
             ]
         )
 
-        return response['choices'][0]['message']['content']
+        return response
